@@ -1,186 +1,116 @@
-let estudiantes = [];
-let porcentajes = [0, 0, 0];
-
-// 🔥 VALIDACIÓN DE NOTAS
-function validarNota(val, input) {
-    let num = parseFloat(val);
-
-    if (isNaN(num)) {
-        return null;
-    }
-
-    if (num < 0) {
-        alert("No se permiten notas negativas");
+const $ = id => document.getElementById(id);
+let estudiantes = [], porcentajes = [0, 0, 0];
+const STORAGE_KEY = "calculadoraNotas";
+const guardarDatos = () => localStorage.setItem(STORAGE_KEY, JSON.stringify({ estudiantes, porcentajes }));
+const cargarDatos = () => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return;
+    try {
+        const datos = JSON.parse(saved);
+        if (Array.isArray(datos.estudiantes)) {
+            estudiantes = datos.estudiantes.map(est => ({
+                ...est,
+                c1: est.c1 == null ? null : Number(est.c1),
+                c2: est.c2 == null ? null : Number(est.c2),
+                c3: est.c3 == null ? null : Number(est.c3)
+            }));
+        }
+        if (Array.isArray(datos.porcentajes) && datos.porcentajes.length === 3) {
+            porcentajes = datos.porcentajes.map(p => Number(p) || 0);
+        }
+    } catch {}
+};
+let mensajeTimeout;
+const mostrarMensaje = (texto, tipo = "error") => {
+    const cont = $("mensaje");
+    if (!cont) return;
+    clearTimeout(mensajeTimeout);
+    cont.textContent = texto;
+    cont.className = `mensaje mensaje--${tipo}`;
+    mensajeTimeout = setTimeout(() => {
+        cont.textContent = "";
+        cont.className = "mensaje";
+    }, 5000);
+};
+const parseNota = val => {
+    const num = parseFloat(val);
+    return isNaN(num) ? null : num;
+};
+const validarNota = (val, input) => {
+    const num = parseNota(val);
+    if (num == null) return null;
+    if (num < 0 || num > 5) {
+        mostrarMensaje(num < 0 ? "No se permiten notas negativas" : "La nota no puede ser mayor a 5");
         input.value = "";
         return null;
     }
-
-    if (num > 5) {
-        alert("La nota no puede ser mayor a 5");
-        input.value = "";
-        return null;
-    }
-
     return num;
-}
-
-// 🔥 ENCABEZADOS DINÁMICOS
-function actualizarEncabezados() {
-    document.getElementById("th-c1").textContent = `C1 (${porcentajes[0]}%)`;
-    document.getElementById("th-c2").textContent = `C2 (${porcentajes[1]}%)`;
-    document.getElementById("th-c3").textContent = `C3 (${porcentajes[2]}%)`;
-}
-
-// 🔥 PORCENTAJES
-document.getElementById("porcentaje-form").addEventListener("submit", e => {
+};
+const actualizarEncabezados = () => ["c1", "c2", "c3"].forEach((c, i) => $("th-" + c).textContent = `${c.toUpperCase()} (${porcentajes[i]}%)`);
+const leerPorcentajes = () => {
+    const p = [1, 2, 3].map(i => parseFloat($(`corte${i}-porcentaje`).value) || 0);
+    if (p.some(v => v < 0)) { mostrarMensaje("Los porcentajes no pueden ser negativos"); return null; }
+    if (p.reduce((a, b) => a + b, 0) !== 100) { mostrarMensaje("Los porcentajes deben sumar exactamente 100%"); return null; }
+    return p;
+};
+$("porcentaje-form").addEventListener("submit", e => {
     e.preventDefault();
-
-    let p1 = parseFloat(document.getElementById("corte1-porcentaje").value) || 0;
-    let p2 = parseFloat(document.getElementById("corte2-porcentaje").value) || 0;
-    let p3 = parseFloat(document.getElementById("corte3-porcentaje").value) || 0;
-
-    let total = p1 + p2 + p3;
-
-    if (p1 < 0 || p2 < 0 || p3 < 0) {
-        alert("Los porcentajes no pueden ser negativos");
-        return;
-    }
-
-    if (total !== 100) {
-        alert("Los porcentajes deben sumar exactamente 100%");
-        return;
-    }
-
-    porcentajes = [p1, p2, p3];
-
+    const p = leerPorcentajes();
+    if (!p) return;
+    porcentajes = p;
     actualizarEncabezados();
     renderTabla();
 });
-
-// 🔥 AGREGAR ESTUDIANTE
-document.getElementById("estudiante-form").addEventListener("submit", e => {
+$("estudiante-form").addEventListener("submit", e => {
     e.preventDefault();
-
-    let codigo = document.getElementById("codigo").value.trim();
-
-    let existe = estudiantes.some(est => est.codigo === codigo);
-    if (existe) {
-        alert("Ya existe un estudiante con ese código");
+    const codigo = $("codigo").value.trim();
+    if (estudiantes.some(est => est.codigo === codigo)) {
+        mostrarMensaje("Ya existe un estudiante con ese código");
         return;
     }
-
     estudiantes.push({
-        nombre: document.getElementById("nombre").value.trim(),
-        codigo: codigo,
-        c1: validarNota(document.getElementById("corte1").value, document.getElementById("corte1")),
-        c2: validarNota(document.getElementById("corte2").value, document.getElementById("corte2")),
-        c3: validarNota(document.getElementById("corte3").value, document.getElementById("corte3"))
+        nombre: $("nombre").value.trim(),
+        codigo,
+        c1: validarNota($("corte1").value, $("corte1")),
+        c2: validarNota($("corte2").value, $("corte2")),
+        c3: validarNota($("corte3").value, $("corte3"))
     });
-
     e.target.reset();
     renderTabla();
 });
-
-// 🔥 DEFINITIVA
-function calcularDef(e) {
-    if (e.c1 == null || e.c2 == null || e.c3 == null) return null;
-
-    return (
-        e.c1 * porcentajes[0] / 100 +
-        e.c2 * porcentajes[1] / 100 +
-        e.c3 * porcentajes[2] / 100
-    ).toFixed(2);
-}
-
-// 🔥 NOTA NECESARIA
-function calcularNecesaria(e, objetivo) {
-    let suma = 0;
-    let peso = 0;
-
-    if (e.c1 != null) suma += e.c1 * porcentajes[0] / 100;
-    else peso += porcentajes[0];
-
-    if (e.c2 != null) suma += e.c2 * porcentajes[1] / 100;
-    else peso += porcentajes[1];
-
-    if (e.c3 != null) suma += e.c3 * porcentajes[2] / 100;
-    else peso += porcentajes[2];
-
+const calcularDef = e => (e.c1 == null || e.c2 == null || e.c3 == null) ? null : ((e.c1 * porcentajes[0] + e.c2 * porcentajes[1] + e.c3 * porcentajes[2]) / 100).toFixed(2);
+const calcularNecesaria = (e, objetivo) => {
+    const suma = [e.c1, e.c2, e.c3].reduce((s, n, i) => s + (n != null ? n * porcentajes[i] / 100 : 0), 0);
+    const peso = [e.c1, e.c2, e.c3].reduce((s, n, i) => s + (n == null ? porcentajes[i] : 0), 0);
     if (peso === 0) return "N/A";
-
-    let necesaria = (objetivo - suma) / (peso / 100);
-
-    if (necesaria > 5) return "Imposible";
-    if (necesaria < 0) return "0.0";
-
-    return necesaria.toFixed(2);
-}
-
-// 🔥 TABLA
-function renderTabla() {
+    const necesaria = (objetivo - suma) / (peso / 100);
+    return necesaria > 5 ? "Imposible" : necesaria < 0 ? "0.0" : necesaria.toFixed(2);
+};
+const crearInput = (valor, campo, e) => {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.value = valor ?? "";
+    input.style.width = "60px";
+    input.step = "any";
+    input.min = 0;
+    input.max = 5;
+    input.onchange = () => {
+        e[campo] = validarNota(input.value, input);
+        renderTabla();
+    };
+    return input;
+};
+const ordenarEstudiantes = () => estudiantes.sort((a, b) => {
+    const na = Number(a.codigo), nb = Number(b.codigo);
+    return !isNaN(na) && !isNaN(nb) ? na - nb : a.codigo.localeCompare(b.codigo);
+});
+const renderTabla = () => {
     const tbody = document.querySelector("#estudiantes-table tbody");
     tbody.innerHTML = "";
-
-    estudiantes.sort((a, b) => {
-        let numA = Number(a.codigo);
-        let numB = Number(b.codigo);
-
-        if (!isNaN(numA) && !isNaN(numB)) {
-            return numA - numB;
-        } else {
-            return a.codigo.localeCompare(b.codigo);
-        }
-    });
-
+    ordenarEstudiantes();
     estudiantes.forEach((e, i) => {
-        const tr = document.createElement("tr");
-
         const def = calcularDef(e);
-
-        function crearInput(valor, campo) {
-            const input = document.createElement("input");
-            input.type = "number";
-            input.value = valor ?? "";
-            input.style.width = "60px";
-
-            // ✔ permitir decimales libres
-            input.step = "any";
-
-            input.min = 0;
-            input.max = 5;
-
-            input.onchange = () => {
-                let val = parseFloat(input.value);
-
-                if (isNaN(val)) {
-                    e[campo] = null;
-                    renderTabla();
-                    return;
-                }
-
-                if (val < 0) {
-                    alert("No se permiten notas negativas");
-                    input.value = "";
-                    e[campo] = null;
-                    renderTabla();
-                    return;
-                }
-
-                if (val > 5) {
-                    alert("La nota no puede ser mayor a 5");
-                    input.value = "";
-                    e[campo] = null;
-                    renderTabla();
-                    return;
-                }
-
-                e[campo] = val;
-                renderTabla();
-            };
-
-            return input;
-        }
-
+        const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${e.nombre}</td>
             <td>${e.codigo}</td>
@@ -192,75 +122,40 @@ function renderTabla() {
             <td>${def ? "N/A" : calcularNecesaria(e, 5)}</td>
             <td></td>
         `;
-
-        tr.children[2].appendChild(crearInput(e.c1, "c1"));
-        tr.children[3].appendChild(crearInput(e.c2, "c2"));
-        tr.children[4].appendChild(crearInput(e.c3, "c3"));
-
+        tr.children[2].appendChild(crearInput(e.c1, "c1", e));
+        tr.children[3].appendChild(crearInput(e.c2, "c2", e));
+        tr.children[4].appendChild(crearInput(e.c3, "c3", e));
         const btn = document.createElement("button");
         btn.textContent = "Eliminar";
         btn.onclick = () => eliminar(i);
-
         tr.children[8].appendChild(btn);
-
         tbody.appendChild(tr);
     });
-}
-
-// 🔥 ELIMINAR
-function eliminar(i) {
-    estudiantes.splice(i, 1);
-    renderTabla();
-}
-
-// 🔥 EXPORTAR CSV
-document.getElementById("exportar-btn").onclick = () => {
-    let csv = "Nombre,Codigo,C1,C2,C3\n";
-
-    estudiantes.forEach(e => {
-        csv += `${e.nombre},${e.codigo},${e.c1 ?? ""},${e.c2 ?? ""},${e.c3 ?? ""}\n`;
-    });
-
-    const blob = new Blob([csv]);
-    const url = URL.createObjectURL(blob);
-
+    guardarDatos();
+};
+const eliminar = i => { estudiantes.splice(i, 1); renderTabla(); };
+$("exportar-btn").onclick = () => {
+    const csv = ["Nombre,Codigo,C1,C2,C3", ...estudiantes.map(e => `${e.nombre},${e.codigo},${e.c1 ?? ""},${e.c2 ?? ""},${e.c3 ?? ""}`)].join("\n");
     const a = document.createElement("a");
-    a.href = url;
+    a.href = URL.createObjectURL(new Blob([csv]));
     a.download = "estudiantes.csv";
     a.click();
+    mostrarMensaje("CSV exportado correctamente", "success");
 };
-
-// 🔥 IMPORTAR CSV
-document.getElementById("importar-btn").onclick = () => {
-    document.getElementById("importar-csv").click();
-};
-
-document.getElementById("importar-csv").onchange = function () {
+$("importar-btn").onclick = () => $("importar-csv").click();
+$("importar-csv").onchange = function () {
     const file = this.files[0];
     if (!file) return;
-
     const reader = new FileReader();
-
     reader.onload = e => {
-        const lineas = e.target.result.split("\n").slice(1);
-
-        lineas.forEach(f => {
+        e.target.result.split(/\r?\n/).slice(1).forEach(f => {
+            if (!f.trim()) return;
             const [n, c, c1, c2, c3] = f.split(",");
             if (!n) return;
-
-            let nuevo = {
-                nombre: n.trim(),
-                codigo: c.trim(),
-                c1: parseFloat(c1) || null,
-                c2: parseFloat(c2) || null,
-                c3: parseFloat(c3) || null
-            };
-
-            let index = estudiantes.findIndex(e => e.codigo === nuevo.codigo);
-
+            const nuevo = { nombre: n.trim(), codigo: c.trim(), c1: parseNota(c1), c2: parseNota(c2), c3: parseNota(c3) };
+            const index = estudiantes.findIndex(x => x.codigo === nuevo.codigo);
             if (index !== -1) {
-                let actual = estudiantes[index];
-
+                const actual = estudiantes[index];
                 estudiantes[index] = {
                     nombre: nuevo.nombre || actual.nombre,
                     codigo: actual.codigo,
@@ -268,18 +163,15 @@ document.getElementById("importar-csv").onchange = function () {
                     c2: nuevo.c2 ?? actual.c2,
                     c3: nuevo.c3 ?? actual.c3
                 };
-            } else {
-                estudiantes.push(nuevo);
-            }
+            } else estudiantes.push(nuevo);
         });
-
         this.value = "";
         renderTabla();
+        mostrarMensaje("CSV importado correctamente", "success");
     };
-
     reader.readAsText(file);
 };
-
-// 🔥 INICIALIZACIÓN
+cargarDatos();
+[1, 2, 3].forEach(i => $("corte" + i + "-porcentaje").value = porcentajes[i - 1]);
 actualizarEncabezados();
 renderTabla();

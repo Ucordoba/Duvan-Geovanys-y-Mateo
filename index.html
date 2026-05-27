@@ -25,6 +25,8 @@
     <!-- MAIN -->
     <main class="app-container">
 
+        <div id="mensaje" class="mensaje" aria-live="polite"></div>
+
         <!-- PORCENTAJES -->
         <section class="card">
             <h2>Configuración de porcentajes</h2>
@@ -42,9 +44,9 @@
             <form id="estudiante-form" class="grid-form">
                 <input type="text" id="nombre" placeholder="Nombre" required>
                 <input type="text" id="codigo" placeholder="Código" required>
-                <input type="text" id="corte1" placeholder="Corte 1">
-                <input type="text" id="corte2" placeholder="Corte 2">
-                <input type="text" id="corte3" placeholder="Corte 3">
+                <input type="number" id="corte1" placeholder="Corte 1" min="0" max="5" step="any">
+                <input type="number" id="corte2" placeholder="Corte 2" min="0" max="5" step="any">
+                <input type="number" id="corte3" placeholder="Corte 3" min="0" max="5" step="any">
                 <button type="submit">Agregar</button>
             </form>
         </section>
